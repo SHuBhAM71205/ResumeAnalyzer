@@ -1,5 +1,5 @@
 from minio import Minio
-from Core.config import settings
+from backend.Core.config import settings
 
 
 Minio_client = Minio(

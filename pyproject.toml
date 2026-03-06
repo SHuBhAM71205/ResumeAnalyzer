@@ -5,13 +5,17 @@ description = "A production level scalable resume analizer..."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "asyncio>=4.0.0",
+    "asyncpg>=0.31.0",
     "celery>=5.6.2",
     "fastapi[standard]>=0.135.1",
     "lxml>=6.0.2",
     "minio>=7.2.20",
     "psycopg2-binary>=2.9.11",
+    "pwdlib[argon2]>=0.3.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+    "pyjwt>=2.11.0",
     "python-dotenv>=1.2.2",
     "python-magic>=0.4.27",
     "qdrant-client>=1.17.0",
