@@ -6,11 +6,12 @@
 - [*] Define hyper-strict limit for `/resumes/upload` to prevent OpenAI spam.
 
 ## 2. API Caching (Read-Heavy Endpoints)
-- [ ] Implement short-lived caching for the `/user/` (Profile) endpoint.
+- [*] Implement short-lived caching for the `/user/` (Profile) endpoint.
   - TTL: 5 minutes.
-  - Invalidate cache automatically if the user updates their profile.
-- [ ] Implement short-lived caching for `/user/resumes` (Dashboard list).
-  - TTL: 60 seconds (prevents reload spam against Postgres + MinIO).
+  [*]. Invalidate cache automatically if the user updates their profile.
+
+- [*] Implement short-lived caching for `/user/resumes` (Dashboard list).
+  [*]TTL: 60 seconds (prevents reload spam against Postgres + MinIO).
 
 ## 3. Background Processing (FastAPI + Celery + Redis)
 - [ ] Set up Celery to use Redis as the Message Broker (`broker_url`).

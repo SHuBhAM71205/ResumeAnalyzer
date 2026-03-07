@@ -24,7 +24,21 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-      
+  
+  redis-celery:
+    image: redis:7-alpine
+    container_name: RESUME_REDIS_CELERY
+    restart: always
+    ports:
+      - "6380:6380" #R
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    
   qdrant:
     container_name: RESUME_QDRANT
     image: qdrant/qdrant:latest
