@@ -53,7 +53,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     
 
+    #LIMITS
+    
+    GLOBAL_RATE_LIMIT_PER_MINUTE: int = 100 # Max requests per minute per IP
+    AUTH_RATE_LIMIT_PER_MINUTE: int = 5 # Max Auth request in a min allow per IP
 
-
-settings = Settings()
+settings = Settings() #type:ignore
 

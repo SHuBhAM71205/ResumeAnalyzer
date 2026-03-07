@@ -1,0 +1,25 @@
+
+## 1. Rate Limiting (Infrastructure Protection)
+- [*] Connect [limmiter.py](file:///c:/Users/sp710/Desktop/ResumeAnalizer/backend/Middleware/limmiter.py) safely to [redis_cache.py](file:///c:/Users/sp710/Desktop/ResumeAnalizer/backend/Middleware/redis_cache.py).
+- [*] Define global limit of ~100 requests / minute for non-auth routes.
+- [*] Define strict limit of ~5 requests / minute for `/auth/login` and `/auth/signup`.
+- [*] Define hyper-strict limit for `/resumes/upload` to prevent OpenAI spam.
+
+## 2. API Caching (Read-Heavy Endpoints)
+- [ ] Implement short-lived caching for the `/user/` (Profile) endpoint.
+  - TTL: 5 minutes.
+  - Invalidate cache automatically if the user updates their profile.
+- [ ] Implement short-lived caching for `/user/resumes` (Dashboard list).
+  - TTL: 60 seconds (prevents reload spam against Postgres + MinIO).
+
+## 3. Background Processing (FastAPI + Celery + Redis)
+- [ ] Set up Celery to use Redis as the Message Broker (`broker_url`).
+- [ ] Setup Celery to use Redis as the Result Backend (`result_backend`).
+- [ ] Refactor the Resume Upload endpoint to hand off processing to a Celery `@task`.
+- [ ] Update POST `/resumes/upload` to immediately return `{"status": "Processing"}` cleanly without waiting for AI.
+
+## 4. AI & Vector Optimization (The Money Saver)
+- [ ] Build a hashing utility for incoming AI text queries (e.g., `md5(job_description)`).
+- [ ] Before calling OpenAI's `ada-002` embedding API, check Redis for `embedding:{hash}`.
+- [ ] If found: Immediately pass the cached vector to Qdrant.
+- [ ] If missing: Call OpenAI, then store the result `redis.setex(f"embedding:{hash}", 86400, vector_data)`.
