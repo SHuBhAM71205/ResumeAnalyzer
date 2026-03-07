@@ -1,13 +1,9 @@
 from celery import shared_task
 import requests
-import sys
-import os
 import json
 import hashlib
 import redis
 
-# Add the backend path to import config
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from backend.Core.config import settings
 

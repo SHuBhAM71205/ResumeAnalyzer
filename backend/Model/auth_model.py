@@ -13,7 +13,6 @@ class SignupRequest(BaseModel):
     password: str
     
 
-
 class UserResponse(BaseModel):
     id: UUID
     email: str

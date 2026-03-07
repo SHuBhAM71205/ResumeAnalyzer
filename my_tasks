@@ -1,0 +1,77 @@
+
+## 1. Rate Limiting (Infrastructure Protection)
+- [*] Connect [limmiter.py](file:///c:/Users/sp710/Desktop/ResumeAnalizer/backend/Middleware/limmiter.py) safely to [redis_cache.py](file:///c:/Users/sp710/Desktop/ResumeAnalizer/backend/Middleware/redis_cache.py).
+- [*] Define global limit of ~100 requests / minute for non-auth routes.
+- [*] Define strict limit of ~5 requests / minute for `/auth/login` and `/auth/signup`.
+- [*] Define hyper-strict limit for `/resumes/upload` to prevent OpenAI spam.
+
+## 2. API Caching (Read-Heavy Endpoints)
+- [*] Implement short-lived caching for the `/user/` (Profile) endpoint.
+  - TTL: 5 minutes.
+  [*]. Invalidate cache automatically if the user updates their profile.
+
+- [*] Implement short-lived caching for `/user/resumes` (Dashboard list).
+  [*]TTL: 60 seconds (prevents reload spam against Postgres + MinIO).
+
+## 3. Background Processing (FastAPI + Celery + Redis)
+- [ ] Set up Celery to use Redis as the Message Broker (`broker_url`).
+- [ ] Setup Celery to use Redis as the Result Backend (`result_backend`).
+- [ ] Refactor the Resume Upload endpoint to hand off processing to a Celery `@task`.
+- [ ] Update POST `/resumes/upload` to immediately return `{"status": "Processing"}` cleanly without waiting for AI.
+
+## 4. AI & Vector Optimization (The Money Saver)
+- [ ] Build a hashing utility for incoming AI text queries (e.g., `md5(job_description)`).
+- [ ] Before calling OpenAI's `ada-002` embedding API, check Redis for `embedding:{hash}`.
+- [ ] If found: Immediately pass the cached vector to Qdrant.
+- [ ] If missing: Call OpenAI, then store the result `redis.setex(f"embedding:{hash}", 86400, vector_data)`.
+
+
+
+
+### 2. Implement the Background Job Ingestion (Celery)
+
+Move the logic out of your FastAPI endpoints and into `celery-resume-analyzer/tasks/get_jobs.py`.
+
+* **Step A: API Fetching:** Use a Job Search API (like JSearch or Adzuna) to pull raw job data.
+* **Step B: Deduplication Logic:** * Check **PostgreSQL** for the `job_id`.
+* If the ID exists, skip to the next job to save OpenAI costs.
+
+
+* **Step C: Batch Embedding:** * Take new job descriptions and send them to the OpenAI embedding model in a single batch call.
+* **Step D: Dual-Storage Write:**
+* Save the full JSON/metadata to **PostgreSQL**.
+* Upsert the vector and minimal metadata (ID, Title) to **Qdrant**.
+
+
+
+---
+
+### 3. Build the Resume Processing Pipeline
+
+Since you are already using MinIO for storage, focus on the "Update" logic in `Service/resume.py`.
+
+* **Trigger on Upload:** When a user uploads a PDF, save it to **MinIO** and trigger a Celery task (`process_resume`).
+* **Text Extraction & Embedding:** Extract text from the PDF, get the embedding, and store it in a `users` collection in **Qdrant**.
+* **The "Upsert" Rule:** Use the `user_id` as the Qdrant Point ID so that every new upload automatically overwrites the old vector.
+
+---
+
+### 4. Create the Recommendation Engine (The "Comparison")
+
+This is where you "own the architecture" by simply connecting the dots in `Service/app.py`.
+
+* **Fetch Vector:** Retrieve the current user's resume vector from Qdrant.
+* **Similarity Search:** Call `client.search` on the `job_cluster` collection.
+* **Apply Filters:** Use a Qdrant filter to ensure you are only searching through "Job" types, not other resumes.
+* **Hydrate Data:** Take the IDs returned by Qdrant and fetch the "pretty" display details (company logo, full description) from **PostgreSQL**.
+
+---
+
+### 5. Management & Monitoring (Infrastructure)
+
+Since you have **Grafana** and **Prometheus** in your file tree, use them to lower your "mental load."
+
+* **Monitor Celery Queues:** Ensure jobs aren't piling up or failing silently.
+* **Track API Usage:** Monitor your OpenAI and Job API credit consumption to avoid surprise bills.
+
+**Would you like me to generate the Pydantic "Contract" model for your `Model/` folder to get you started on Step 1?**
