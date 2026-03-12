@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     
     @property
     def REDIS_URL(self) -> str:
-        if self.REDIS_PASSWORD:
+        if self.REDIS_PASSWORD!="":
             return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
@@ -58,18 +58,18 @@ class Settings(BaseSettings):
 
     @property
     def CELERY_BROKER_URL(self) -> str:
-        if self.CELERY_REDIS_PASSWORD:
+        if self.CELERY_REDIS_PASSWORD!="":
             return f"redis://:{self.CELERY_REDIS_PASSWORD}@{self.CELERY_REDIS_HOST}:{self.CELERY_REDIS_PORT}/{self.CELERY_REDIS_DB_BROKER}"
         return f"redis://{self.CELERY_REDIS_HOST}:{self.CELERY_REDIS_PORT}/{self.CELERY_REDIS_DB_BROKER}"
 
     @property
     def CELERY_RESULT_BACKEND(self) -> str:
-        if self.CELERY_REDIS_PASSWORD:
+        if self.CELERY_REDIS_PASSWORD!="":
             return f"redis://:{self.CELERY_REDIS_PASSWORD}@{self.CELERY_REDIS_HOST}:{self.CELERY_REDIS_PORT}/{self.CELERY_REDIS_DB_BACKEND}"
         return f"redis://{self.CELERY_REDIS_HOST}:{self.CELERY_REDIS_PORT}/{self.CELERY_REDIS_DB_BACKEND}"
 
     # CELERY
-    CELERY_ACCEPT_CONTENT: list = ["json"]
+    CELERY_ACCEPT_CONTENT: str = "json"
     CELERY_TASK_SERIALIZER: str = "json"
     CELERY_RESULT_SERIALIZER: str = "json"
     CELERY_TIMEZONE: str = "UTC"
@@ -86,10 +86,21 @@ class Settings(BaseSettings):
     
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     
+    # hugging face
+    
+    HF_ACCESS_TOKEN: str
+    HF_MODEL_NAME: str
+    HUGGING_FACE_ACCESS_URL: str
+    
+        
     # LIMITS
     GLOBAL_RATE_LIMIT_PER_MINUTE: int = 100  # Max requests per minute per IP
     AUTH_RATE_LIMIT_PER_MINUTE: int = 5      # Max Auth request in a min allow per IP
     RESUME_UPLOAD_LIMIT: int = 10             # Max Resume upload in a min allow per userid
+    
+    
+    # FRONTEND
+    REACT_APP_FRONTEND_URL: str = "http://localhost:3000"
 
 settings = Settings()  # type:ignore
 

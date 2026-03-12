@@ -4,6 +4,7 @@ from sqlalchemy import select
 from datetime import timedelta
 
 from backend.Core.db import get_db
+from backend.Middleware.limmiter import auth_rate_limiter
 from backend.Model.model import User
 from backend.Service.auth import (
     verify_password,
@@ -21,7 +22,11 @@ from backend.Model.auth_model import (
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(
+    request: LoginRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(auth_rate_limiter),
+):
 
     result = await db.execute(select(User).where(User.email == request.email))
     user = result.scalars().first()
@@ -47,7 +52,11 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     )
 
 @router.post("/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
-async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
+async def signup(
+    request: SignupRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(auth_rate_limiter),
+):
     # Corrected Async Query
     result = await db.execute(select(User).where(User.email == request.email))
     existing_user = result.scalars().first()

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jwt import encode, decode
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 from backend.Core.config import settings
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -14,7 +14,7 @@ from sqlalchemy import select
 from backend.Core.db import get_db
 from backend.Model.model import User
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 SECRET_KEY = settings.SECRETE_KEY
@@ -49,9 +49,9 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode.update({"exp": expire})
     
@@ -65,37 +65,54 @@ def verify_token(token: str):
     try:
         payload = decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         subject: str = payload.get("sub")
+        expires_at = payload.get("exp")
         
         if subject is None:
             return None
         
-        token_data = TokenData(sub=subject)
+        token_data = TokenData(sub=subject, exp=expires_at)
         return token_data
     
     except InvalidTokenError:
         return None
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: AsyncSession = Depends(get_db)):
+async def get_user_by_subject(subject: str, db: AsyncSession) -> Optional[User]:
+    try:
+        from uuid import UUID
+        user_uuid = UUID(subject)
+    except ValueError:
+        return None
+
+    result = await db.execute(select(User).where(User.id == user_uuid))
+    return result.scalars().first()
+
+
+async def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    token = credentials.credentials
-    token_data = verify_token(token)
-    if token_data is None:
-        raise credentials_exception
-    
-    # Needs a UUID context. Token subject is stringified UUID.
-    try:
-        from uuid import UUID
-        user_uuid = UUID(token_data.sub)
-    except ValueError:
+
+    request_user = getattr(request.state, "current_user", None)
+    if request_user is not None:
+        if not request_user.is_active:
+            raise HTTPException(status_code=400, detail="Inactive user")
+        return request_user
+
+    if credentials is None:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.id == user_uuid))
-    user = result.scalars().first()
+    token_data = verify_token(credentials.credentials)
+    if token_data is None:
+        raise credentials_exception
+
+    user = await get_user_by_subject(token_data.sub, db)
     
     if user is None:
         raise credentials_exception

@@ -1,20 +1,26 @@
 from fastapi.routing import APIRouter
-from fastapi import Depends, UploadFile,BackgroundTasks,HTTPException, Request
-from fastapi.responses import StreamingResponse, FileResponse
-from typing import Optional
+from fastapi import Depends, UploadFile,BackgroundTasks,HTTPException
+from fastapi.responses import StreamingResponse
 
 from uuid import uuid4,UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from backend.Middleware.limmiter import resume_rate_limiter
+from backend.Service.auth import get_current_user
 from backend.Service.resume import save_to_minio
-from backend.Model.model import Resume
+from backend.Model.model import Resume, User
 from backend.Core.db import get_db
 from backend.Core.config import settings
 
-from backend.Middleware.redis_cache import redis_resume_cache_get, redis_resume_cache_set
+from backend.Middleware.redis_cache import (
+    redis_cache_invalidate,
+    redis_resume_cache_get,
+    redis_resume_cache_set,
+)
 from backend.Core.minio import Minio_client
+
+from celeryResumeAnalyzer.celery import celery_app
 
 router = APIRouter(
     prefix="/resume",
@@ -31,12 +37,19 @@ router = APIRouter(
         404: {"description": "Resume not found"}
     }
 )
-async def get_resume(user_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_resume(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Get a resume PDF by user ID.
     
     Returns the stored resume as a PDF file. Results are cached in Redis for 1 minute.
     """
+    if user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only access your own resume")
+
     # Try to get from cache first
     cached_resume = await redis_resume_cache_get(user_id)
     if cached_resume:
@@ -72,7 +85,8 @@ async def resume_upload_user(
     user_id: UUID,
     file: UploadFile,
     background_task: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Upload a resume PDF for a specific user.
@@ -81,6 +95,9 @@ async def resume_upload_user(
     Returns the resume ID for future reference.
     """
     
+    if user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only upload your own resume")
+
     if file.content_type != "application/pdf": 
         raise HTTPException(status_code=400,detail="Only PDF type allowed for resume")
     
@@ -103,8 +120,19 @@ async def resume_upload_user(
     db.add(new_resume)
     await db.commit()
     await db.refresh(new_resume)
+
+    await redis_cache_invalidate(f"resume_cache:{user_id}")
     
     background_task.add_task(save_to_minio, settings.MINIO_BUCKET_NAME, unique_filename, file.file)
+
+    try:
+        celery_app.send_task(
+            "celeryResumeAnalyzer.tasks.embedding_task.store_resume_embedding",
+            args=[unique_filename],
+        )
+    except Exception as exc:
+        print(f"Unable to queue embedding task for {unique_filename}: {exc}")
+    
     
     return {
         "message": "Resume uploaded successfully",
@@ -120,7 +148,11 @@ async def resume_upload_user(
         404: {"description": "Resume not found"}
     }
 )
-async def resume_analyze(resume_id: int, db: AsyncSession = Depends(get_db)):
+async def resume_analyze(
+    resume_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Analyze a resume using AI/RAG system.
     
@@ -131,6 +163,9 @@ async def resume_analyze(resume_id: int, db: AsyncSession = Depends(get_db)):
     resume = result.scalar_one_or_none()
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
+
+    if resume.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only analyze your own resume")
     
     # TODO: Implement resume analysis logic
     return {"message": "Resume analysis feature coming soon"}
@@ -149,7 +184,8 @@ async def resume_update(
     resume_id: UUID,
     file: UploadFile,
     background_task: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Update an existing resume for a user.
@@ -164,6 +200,9 @@ async def resume_update(
     resume = result.scalar_one_or_none()
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
+
+    if resume.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only update your own resume")
     
     file_size = len(await file.read())
     await file.seek(0)
@@ -172,6 +211,8 @@ async def resume_update(
     resume.status = "processing"
     
     await db.commit()
+
+    await redis_cache_invalidate(f"resume_cache:{resume.user_id}")
     
     background_task.add_task(save_to_minio, settings.MINIO_BUCKET_NAME, resume.minio_object_name, file.file)
     

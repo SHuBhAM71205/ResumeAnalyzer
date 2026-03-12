@@ -19,6 +19,7 @@ services:
       - "6379:6379" #R
     volumes:
       - redis_data:/data
+    command: 
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -30,21 +31,26 @@ services:
     container_name: RESUME_REDIS_CELERY
     restart: always
     ports:
-      - "6380:6380" #R
+      - "6380:6379" #R
     volumes:
       - redis_data:/data
+    command: ["redis-server", "--protected-mode", "no"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
-    
+
+
+
   qdrant:
     container_name: RESUME_QDRANT
     image: qdrant/qdrant:latest
     ports: 
       - "6333:6333" 
       - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
 
   minio:
     image: minio/minio:latest
@@ -103,3 +109,4 @@ volumes:
   postgres_data:
   minio_data:
   redis_data:
+  qdrant_data:

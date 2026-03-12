@@ -11,3 +11,4 @@ wheels/
 .git
 .env
 tests
+/frontend

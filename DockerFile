@@ -14,4 +14,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY . .
 
+RUN celery -A celeryResumeAnalyzer.celery worker -l info --loglevel=info -P eventlet
+
 CMD ["uv", "run", "uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000",""]

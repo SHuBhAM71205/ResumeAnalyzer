@@ -30,7 +30,7 @@ class CeleryConfig:
     """Celery configuration class for direct use"""
     broker_url = settings.CELERY_BROKER_URL
     result_backend = settings.CELERY_RESULT_BACKEND
-    accept_content = settings.CELERY_ACCEPT_CONTENT
+    accept_content = [settings.CELERY_ACCEPT_CONTENT]
     task_serializer = settings.CELERY_TASK_SERIALIZER
     result_serializer = settings.CELERY_RESULT_SERIALIZER
     timezone = settings.CELERY_TIMEZONE

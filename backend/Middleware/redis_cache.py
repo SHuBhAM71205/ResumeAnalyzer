@@ -26,7 +26,7 @@ async def redis_profile_cache_set(user_id: UUID, profile: dict) -> bool:
         True if successful, False otherwise
     """
     try:
-        redis_client = await get_redis_client()
+        redis_client = get_redis_client()
         cache_key = f"profile_cache:{user_id}"
         
         # Serialize profile as JSON
@@ -52,7 +52,7 @@ async def redis_profile_cache_get(user_id: UUID) -> Optional[dict]:
         Profile dictionary if cached, None otherwise
     """
     try:
-        redis_client = await get_redis_client()
+        redis_client = get_redis_client()
         cache_key = f"profile_cache:{user_id}"
         
         cached_data = await redis_client.get(cache_key)
@@ -80,7 +80,7 @@ async def redis_resume_cache_set(user_id: UUID, resume_data: bytes) -> bool:
         True if successful, False otherwise
     """
     try:
-        redis_client = await get_redis_client()
+        redis_client = get_redis_client()
         cache_key = f"resume_cache:{user_id}"
         
         # Encode binary data to base64 for storage
@@ -112,7 +112,7 @@ async def redis_resume_cache_get(user_id: UUID) -> Optional[bytes]:
         Resume file bytes if cached, None otherwise
     """
     try:
-        redis_client = await get_redis_client()
+        redis_client = get_redis_client()
         cache_key = f"resume_cache:{user_id}"
         
         cached_data = await redis_client.get(cache_key)
@@ -141,7 +141,7 @@ async def redis_cache_invalidate(cache_key: str) -> bool:
         True if successful, False otherwise
     """
     try:
-        redis_client = await get_redis_client()
+        redis_client = get_redis_client()
         await redis_client.delete(cache_key)
         logger.info(f"Cache invalidated: {cache_key}")
         return True
